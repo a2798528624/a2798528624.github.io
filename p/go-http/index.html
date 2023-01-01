@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="zh-CN" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='摘要 前端时间在使用项目中的超时控制的时候看到直接根据 context.WithTimeout 来实现。感觉到十分困惑，这个方法难道还能够实现自己结束自己的&amp;quot;生命&amp;quot'>
+<title>Go 是如何实现http 的超时控制的？</title>
+
+<link rel='canonical' href='https://a2798528624.github.io/p/go-http/'>
+
+<link rel="stylesheet" href="/scss/style.min.5be32ca3f6e1a997c75795c4359147cc6d4fbd34948c0acd51e31d237033978a.css"><meta property='og:title' content='Go 是如何实现http 的超时控制的？'>
+<meta property='og:description' content='摘要 前端时间在使用项目中的超时控制的时候看到直接根据 context.WithTimeout 来实现。感觉到十分困惑，这个方法难道还能够实现自己结束自己的&amp;quot;生命&amp;quot'>
+<meta property='og:url' content='https://a2798528624.github.io/p/go-http/'>
+<meta property='og:site_name' content='hugoBlog'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:published_time' content='2023-01-01T00:00:00&#43;00:00'/><meta property='article:modified_time' content='2023-01-01T00:00:00&#43;00:00'/><meta property='og:image' content='https://a2798528624.github.io/p/go-http/yang.jpg' />
+<meta name="twitter:title" content="Go 是如何实现http 的超时控制的？">
+<meta name="twitter:description" content="摘要 前端时间在使用项目中的超时控制的时候看到直接根据 context.WithTimeout 来实现。感觉到十分困惑，这个方法难道还能够实现自己结束自己的&amp;quot;生命&amp;quot"><meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:image" content='https://a2798528624.github.io/p/go-http/yang.jpg' />
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="切换菜单">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/steam_3%20%281%29_hud98af56daf0f1c4cfa9b6ac4a77b4af2_18105_300x0_resize_box_3.png" width="300"
+                            height="300" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🍥</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">hugoBlog</a></h1>
+            <h2 class="site-description">分享使知识增值</h2>
+        </div>
+    </header><ol class="menu" id="main-menu">
+        
+        
+        
+        <li  class='current' >
+            <a href='/post/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>Home</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>首页&amp;关于</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/share/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+                
+                <span>资源信息分享</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/note/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-messages" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M21 14l-3 -3h-7a1 1 0 0 1 -1 -1v-6a1 1 0 0 1 1 -1h9a1 1 0 0 1 1 1v10" />
+  <path d="M14 15v2a1 1 0 0 1 -1 1h-7l-3 3v-10a1 1 0 0 1 1 -1h2" />
+</svg>
+
+
+
+                
+                <span>学习&amp;笔记</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/summary/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+                
+                <span>资源信息总结</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/soft/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-messages" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M21 14l-3 -3h-7a1 1 0 0 1 -1 -1v-6a1 1 0 0 1 1 -1h9a1 1 0 0 1 1 1v10" />
+  <path d="M14 15v2a1 1 0 0 1 -1 1h-7l-3 3v-10a1 1 0 0 1 1 -1h2" />
+</svg>
+
+
+
+                
+                <span>软件&amp;网站</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>暗色模式</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+
+    
+
+            <main class="main full-width">
+    <article class="has-image main-article">
+    <header class="article-header">
+        <div class="article-image">
+            <a href="/p/go-http/">
+                <img src="/p/go-http/yang_hube8ff1c83bba46fef8ef379780ce85f5_758008_800x0_resize_q75_box.jpg"
+                        srcset="/p/go-http/yang_hube8ff1c83bba46fef8ef379780ce85f5_758008_800x0_resize_q75_box.jpg 800w, /p/go-http/yang_hube8ff1c83bba46fef8ef379780ce85f5_758008_1600x0_resize_q75_box.jpg 1600w"
+                        width="800" 
+                        height="1382" 
+                        loading="lazy"
+                        alt="Featured image of post Go 是如何实现http 的超时控制的？" />
+                
+            </a>
+        </div>
+    
+
+    <div class="article-details">
+    
+    <header class="article-category">
+        
+            <a href="/categories/go/" >
+                Go
+            </a>
+        
+            <a href="/categories/http/" >
+                Http
+            </a>
+        
+    </header>
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/go-http/">Go 是如何实现http 的超时控制的？</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    
+    
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Jan 01, 2023</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    阅读时长: 3 分钟
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+
+</header>
+
+    <section class="article-content">
+    
+    
+    <h3 id="摘要">摘要</h3>
+<p>前端时间在使用项目中的超时控制的时候看到直接根据 context.WithTimeout 来实现。感觉到十分困惑，这个方法难道还能够实现自己结束自己的&quot;生命&quot;吗？我感觉到十分困惑所以有了今天的这篇文章。</p>
+<h3 id="奇怪的代码">奇怪的代码</h3>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="nx">ctx</span><span class="p">,</span> <span class="nx">_</span> <span class="o">:=</span> <span class="nx">context</span><span class="p">.</span><span class="nf">WithTimeout</span><span class="p">(</span><span class="nx">context</span><span class="p">.</span><span class="nf">Background</span><span class="p">(),</span> <span class="mi">1</span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Second</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="nx">req</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">http</span><span class="p">.</span><span class="nf">NewRequestWithContext</span><span class="p">(</span><span class="nx">ctx</span><span class="p">,</span> <span class="s">&#34;GET&#34;</span><span class="p">,</span> <span class="s">&#34;http://localhost:8081/hello&#34;</span><span class="p">,</span> <span class="kc">nil</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="nx">res</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">client</span><span class="p">.</span><span class="nf">Do</span><span class="p">(</span><span class="nx">req</span><span class="p">)</span>
+</span></span></code></pre></div><p>上面就是大概抽象出来的当时看到的代码？ 如果按照我们正常的思维去实现一个超时控制，肯定会至少存在两个线程，一个线程用来发送请求，一个线程用来控制时间，如下图所示：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">fn</span> <span class="kd">func</span><span class="p">(</span><span class="nx">ctx</span> <span class="nx">context</span><span class="p">.</span><span class="nx">Context</span><span class="p">)</span> <span class="nx">result</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">result</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">Val</span> <span class="kd">interface</span><span class="p">{}</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">Err</span> <span class="kt">error</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">doWithTimeout</span><span class="p">(</span><span class="nx">ctx</span> <span class="nx">context</span><span class="p">.</span><span class="nx">Context</span><span class="p">,</span> <span class="nx">fn</span> <span class="nx">fn</span><span class="p">)</span> <span class="nx">result</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">ch</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">(</span><span class="kd">chan</span> <span class="nx">result</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="k">go</span> <span class="kd">func</span><span class="p">(</span><span class="nx">ctx</span> <span class="nx">context</span><span class="p">.</span><span class="nx">Context</span><span class="p">,</span> <span class="nx">ch</span> <span class="kd">chan</span><span class="o">&lt;-</span> <span class="nx">result</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">ch</span> <span class="o">&lt;-</span> <span class="nf">fn</span><span class="p">(</span><span class="nx">ctx</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}(</span><span class="nx">ctx</span><span class="p">,</span> <span class="nx">ch</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">select</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">case</span> <span class="o">&lt;-</span><span class="nx">ctx</span><span class="p">.</span><span class="nf">Done</span><span class="p">():</span> <span class="c1">// timeout
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="k">go</span> <span class="kd">func</span><span class="p">()</span> <span class="p">{</span> <span class="o">&lt;-</span><span class="nx">ch</span> <span class="p">}()</span> <span class="c1">// wait ch return...
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="k">return</span> <span class="nx">result</span><span class="p">{</span><span class="nx">Err</span><span class="p">:</span> <span class="nx">ctx</span><span class="p">.</span><span class="nf">Err</span><span class="p">()}</span>
+</span></span><span class="line"><span class="cl">	<span class="k">case</span> <span class="nx">res</span> <span class="o">:=</span> <span class="o">&lt;-</span><span class="nx">ch</span><span class="p">:</span> <span class="c1">// normal case
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="k">return</span> <span class="nx">res</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>我感觉到十分的困惑，我感到只有两种可能造成这种情况。一种就是ctx.WithTimeout()中调用了操作系统的某个接口，让这个函数执行到一定时间自动的结束。另一种就是在http的内部存在自己实现的多个线程的控制，被封装了一层。我感觉第一种这种实现是十分危险的，它这种强行的结束，可能会造成程序结束在一个非常奇怪的地方，所以我觉得应该是第2种go语言的http包封装了一层实现的。带着这种猜测，我于是开始阅读http包的源码。</p>
+<h3 id="go的http包">Go的http包</h3>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">setRequestCancel</span><span class="p">(</span><span class="nx">req</span> <span class="o">*</span><span class="nx">Request</span><span class="p">,</span> <span class="nx">rt</span> <span class="nx">RoundTripper</span><span class="p">,</span> <span class="nx">deadline</span> <span class="nx">time</span><span class="p">.</span><span class="nx">Time</span><span class="p">)</span> <span class="p">(</span><span class="nx">stopTimer</span> <span class="kd">func</span><span class="p">(),</span> <span class="nx">didTimeout</span> <span class="kd">func</span><span class="p">()</span> <span class="kt">bool</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="nx">deadline</span><span class="p">.</span><span class="nf">IsZero</span><span class="p">()</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="nx">nop</span><span class="p">,</span> <span class="nx">alwaysFalse</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">knownTransport</span> <span class="o">:=</span> <span class="nf">knownRoundTripperImpl</span><span class="p">(</span><span class="nx">rt</span><span class="p">,</span> <span class="nx">req</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">oldCtx</span> <span class="o">:=</span> <span class="nx">req</span><span class="p">.</span><span class="nf">Context</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="nx">req</span><span class="p">.</span><span class="nx">Cancel</span> <span class="o">==</span> <span class="kc">nil</span> <span class="o">&amp;&amp;</span> <span class="nx">knownTransport</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="c1">// If they already had a Request.Context that&#39;s
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="c1">// expiring sooner, do nothing:
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="k">if</span> <span class="p">!</span><span class="nf">timeBeforeContextDeadline</span><span class="p">(</span><span class="nx">deadline</span><span class="p">,</span> <span class="nx">oldCtx</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="k">return</span> <span class="nx">nop</span><span class="p">,</span> <span class="nx">alwaysFalse</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="kd">var</span> <span class="nx">cancelCtx</span> <span class="kd">func</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">req</span><span class="p">.</span><span class="nx">ctx</span><span class="p">,</span> <span class="nx">cancelCtx</span> <span class="p">=</span> <span class="nx">context</span><span class="p">.</span><span class="nf">WithDeadline</span><span class="p">(</span><span class="nx">oldCtx</span><span class="p">,</span> <span class="nx">deadline</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="nx">cancelCtx</span><span class="p">,</span> <span class="kd">func</span><span class="p">()</span> <span class="kt">bool</span> <span class="p">{</span> <span class="k">return</span> <span class="nx">time</span><span class="p">.</span><span class="nf">Now</span><span class="p">().</span><span class="nf">After</span><span class="p">(</span><span class="nx">deadline</span><span class="p">)</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span></code></pre></div><p>可以在这里面看到，如果你在clint中配置了timeout这个参数，在这里面也会把其中转换为context.WithDeadline()。它会在 clint中配置的参数 与 ctx.WiithTimeout中选择一个较小的时间作为，我们所设置的deadline时间。</p>
+<h3 id="httppersistconnroundtrip">http.persistConn.roundTrip</h3>
+<p>连接实际上也实现了RoundTripper接口。我们先看一看http/1.1的<a class="link" href="https://github.com/golang/go/blob/9baddd3f21230c55f0ad2a10f5f20579dcf0a0bb/src/net/http/transport.go#L2524"  target="_blank" rel="noopener"
+    >实现</a>，限于篇幅，删掉了大量代码，保留我们感兴趣的：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">pc</span> <span class="o">*</span><span class="nx">persistConn</span><span class="p">)</span> <span class="nf">roundTrip</span><span class="p">(</span><span class="nx">req</span> <span class="o">*</span><span class="nx">transportRequest</span><span class="p">)</span> <span class="p">(</span><span class="nx">resp</span> <span class="o">*</span><span class="nx">Response</span><span class="p">,</span> <span class="nx">err</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// deleted...
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="k">if</span> <span class="p">!</span><span class="nx">pc</span><span class="p">.</span><span class="nx">t</span><span class="p">.</span><span class="nf">replaceReqCanceler</span><span class="p">(</span><span class="nx">req</span><span class="p">.</span><span class="nx">cancelKey</span><span class="p">,</span> <span class="nx">pc</span><span class="p">.</span><span class="nx">cancelRequest</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">pc</span><span class="p">.</span><span class="nx">t</span><span class="p">.</span><span class="nf">putOrCloseIdleConn</span><span class="p">(</span><span class="nx">pc</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">errRequestCanceled</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// deleted...
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="k">defer</span> <span class="kd">func</span><span class="p">()</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="nx">pc</span><span class="p">.</span><span class="nx">t</span><span class="p">.</span><span class="nf">setReqCanceler</span><span class="p">(</span><span class="nx">req</span><span class="p">.</span><span class="nx">cancelKey</span><span class="p">,</span> <span class="kc">nil</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}()</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// deleted...
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">writeErrCh</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">(</span><span class="kd">chan</span> <span class="kt">error</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">pc</span><span class="p">.</span><span class="nx">writech</span> <span class="o">&lt;-</span> <span class="nx">writeRequest</span><span class="p">{</span><span class="nx">req</span><span class="p">,</span> <span class="nx">writeErrCh</span><span class="p">,</span> <span class="nx">continueCh</span><span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// deleted...
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">cancelChan</span> <span class="o">:=</span> <span class="nx">req</span><span class="p">.</span><span class="nx">Request</span><span class="p">.</span><span class="nx">Cancel</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">ctxDoneChan</span> <span class="o">:=</span> <span class="nx">req</span><span class="p">.</span><span class="nf">Context</span><span class="p">().</span><span class="nf">Done</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">	<span class="k">for</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">select</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">case</span> <span class="nx">err</span> <span class="o">:=</span> <span class="o">&lt;-</span><span class="nx">writeErrCh</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">			<span class="c1">// deleted...
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="k">case</span> <span class="o">&lt;-</span><span class="nx">pcClosed</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">			<span class="c1">// deleted...
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="k">case</span> <span class="o">&lt;-</span><span class="nx">respHeaderTimer</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">			<span class="c1">// deleted...
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="k">case</span> <span class="nx">re</span> <span class="o">:=</span> <span class="o">&lt;-</span><span class="nx">resc</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">			<span class="c1">// deleted...
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>			<span class="k">return</span> <span class="nx">re</span><span class="p">.</span><span class="nx">res</span><span class="p">,</span> <span class="kc">nil</span>
+</span></span><span class="line"><span class="cl">		<span class="k">case</span> <span class="o">&lt;-</span><span class="nx">cancelChan</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">			<span class="nx">canceled</span> <span class="p">=</span> <span class="nx">pc</span><span class="p">.</span><span class="nx">t</span><span class="p">.</span><span class="nf">cancelRequest</span><span class="p">(</span><span class="nx">req</span><span class="p">.</span><span class="nx">cancelKey</span><span class="p">,</span> <span class="nx">errRequestCanceled</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">			<span class="nx">cancelChan</span> <span class="p">=</span> <span class="kc">nil</span>
+</span></span><span class="line"><span class="cl">		<span class="k">case</span> <span class="o">&lt;-</span><span class="nx">ctxDoneChan</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">			<span class="nx">canceled</span> <span class="p">=</span> <span class="nx">pc</span><span class="p">.</span><span class="nx">t</span><span class="p">.</span><span class="nf">cancelRequest</span><span class="p">(</span><span class="nx">req</span><span class="p">.</span><span class="nx">cancelKey</span><span class="p">,</span> <span class="nx">req</span><span class="p">.</span><span class="nf">Context</span><span class="p">().</span><span class="nf">Err</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">			<span class="nx">cancelChan</span> <span class="p">=</span> <span class="kc">nil</span>
+</span></span><span class="line"><span class="cl">			<span class="nx">ctxDoneChan</span> <span class="p">=</span> <span class="kc">nil</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>首先会判定连接是否是有效的，如果有效则会设置canceler，这是一个<a class="link" href="https://github.com/golang/go/blob/9baddd3f21230c55f0ad2a10f5f20579dcf0a0bb/src/net/http/transport.go#L1966"  target="_blank" rel="noopener"
+    >函数</a>，在检测到超时或者取消的时候将会被调用：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">t</span> <span class="o">*</span><span class="nx">Transport</span><span class="p">)</span> <span class="nf">cancelRequest</span><span class="p">(</span><span class="nx">key</span> <span class="nx">cancelKey</span><span class="p">,</span> <span class="nx">err</span> <span class="kt">error</span><span class="p">)</span> <span class="kt">bool</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">t</span><span class="p">.</span><span class="nx">reqMu</span><span class="p">.</span><span class="nf">Lock</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">cancel</span> <span class="o">:=</span> <span class="nx">t</span><span class="p">.</span><span class="nx">reqCanceler</span><span class="p">[</span><span class="nx">key</span><span class="p">]</span>
+</span></span><span class="line"><span class="cl">	<span class="nb">delete</span><span class="p">(</span><span class="nx">t</span><span class="p">.</span><span class="nx">reqCanceler</span><span class="p">,</span> <span class="nx">key</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">t</span><span class="p">.</span><span class="nx">reqMu</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="nx">cancel</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="nf">cancel</span><span class="p">(</span><span class="nx">err</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="nx">cancel</span> <span class="o">!=</span> <span class="kc">nil</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">pc</span> <span class="o">*</span><span class="nx">persistConn</span><span class="p">)</span> <span class="nf">cancelRequest</span><span class="p">(</span><span class="nx">err</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">pc</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nf">Lock</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">	<span class="k">defer</span> <span class="nx">pc</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">pc</span><span class="p">.</span><span class="nx">canceledErr</span> <span class="p">=</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">pc</span><span class="p">.</span><span class="nf">closeLocked</span><span class="p">(</span><span class="nx">errRequestCanceled</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>cancel的逻辑，相当粗暴，直接将连接断掉，不过http/1.1也确实没有别的办法。那么什么时候这函数会被调用到呢？接下来会通过writech发送写request的请求到连接的一个wirteloop中，然后就是select等待任意一个条件满足：</p>
+<ul>
+<li>写请求失败</li>
+<li>连接断开</li>
+<li>读取响应超时</li>
+<li>响应返回</li>
+<li>request.Cancel收到了信号</li>
+<li>context到期</li>
+</ul>
+<p>其中最后两者会就会调用到canceler将tcp连接断开。
+以上就是http/1.1请求是如何超时/取消的具体实现。最后我们来看一看http/2的，代码框架其实也类似。h2连接的细节这里略过了，只看最后取消的<a class="link" href="https://github.com/golang/go/blob/9baddd3f21230c55f0ad2a10f5f20579dcf0a0bb/src/net/http/h2_bundle.go#L7535"  target="_blank" rel="noopener"
+    >地方</a>：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">cc</span> <span class="o">*</span><span class="nx">http2ClientConn</span><span class="p">)</span> <span class="nf">roundTrip</span><span class="p">(</span><span class="nx">req</span> <span class="o">*</span><span class="nx">Request</span><span class="p">)</span> <span class="p">(</span><span class="nx">res</span> <span class="o">*</span><span class="nx">Response</span><span class="p">,</span> <span class="nx">gotErrAfterReqBodyWrite</span> <span class="kt">bool</span><span class="p">,</span> <span class="nx">err</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// deleted...
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="k">for</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">select</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">case</span> <span class="nx">re</span> <span class="o">:=</span> <span class="o">&lt;-</span><span class="nx">readLoopResCh</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">			<span class="k">return</span> <span class="nf">handleReadLoopResponse</span><span class="p">(</span><span class="nx">re</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="k">case</span> <span class="o">&lt;-</span><span class="nx">respHeaderTimer</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">			<span class="c1">// deleted...
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>			<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">cs</span><span class="p">.</span><span class="nf">getStartedWrite</span><span class="p">(),</span> <span class="nx">http2errTimeout</span>
+</span></span><span class="line"><span class="cl">		<span class="k">case</span> <span class="o">&lt;-</span><span class="nx">ctx</span><span class="p">.</span><span class="nf">Done</span><span class="p">():</span>
+</span></span><span class="line"><span class="cl">			<span class="k">if</span> <span class="p">!</span><span class="nx">hasBody</span> <span class="o">||</span> <span class="nx">bodyWritten</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">				<span class="nx">cc</span><span class="p">.</span><span class="nf">writeStreamReset</span><span class="p">(</span><span class="nx">cs</span><span class="p">.</span><span class="nx">ID</span><span class="p">,</span> <span class="nx">http2ErrCodeCancel</span><span class="p">,</span> <span class="kc">nil</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">			<span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">				<span class="nx">bodyWriter</span><span class="p">.</span><span class="nf">cancel</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">				<span class="nx">cs</span><span class="p">.</span><span class="nf">abortRequestBodyWrite</span><span class="p">(</span><span class="nx">http2errStopReqBodyWriteAndCancel</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">				<span class="o">&lt;-</span><span class="nx">bodyWriter</span><span class="p">.</span><span class="nx">resc</span>
+</span></span><span class="line"><span class="cl">			<span class="p">}</span>
+</span></span><span class="line"><span class="cl">			<span class="nx">cc</span><span class="p">.</span><span class="nf">forgetStreamID</span><span class="p">(</span><span class="nx">cs</span><span class="p">.</span><span class="nx">ID</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">			<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">cs</span><span class="p">.</span><span class="nf">getStartedWrite</span><span class="p">(),</span> <span class="nx">ctx</span><span class="p">.</span><span class="nf">Err</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">		<span class="k">case</span> <span class="o">&lt;-</span><span class="nx">req</span><span class="p">.</span><span class="nx">Cancel</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">			<span class="c1">// deleted...
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="k">case</span> <span class="o">&lt;-</span><span class="nx">cs</span><span class="p">.</span><span class="nx">peerReset</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">			<span class="c1">// processResetStream already removed the
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>			<span class="c1">// stream from the streams map; no need for
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>			<span class="c1">// forgetStreamID.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>			<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">cs</span><span class="p">.</span><span class="nf">getStartedWrite</span><span class="p">(),</span> <span class="nx">cs</span><span class="p">.</span><span class="nx">resetErr</span>
+</span></span><span class="line"><span class="cl">		<span class="k">case</span> <span class="nx">err</span> <span class="o">:=</span> <span class="o">&lt;-</span><span class="nx">bodyWriter</span><span class="p">.</span><span class="nx">resc</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">			<span class="c1">// deleted...
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>这里模型还是http/1.1一样的，select等待超时条件，request.Cancel和context实现基本一致，所以我们只看context到期的，区别于http/1.1，http/2提供了RST_STREM桢来将一个stream的request给cancel掉，所以这也是它的一个优化吧，毕竟连接建立比较耗时。</p>
+<p><img src="/p/go-http/yang.jpg"
+	width="1417"
+	height="2448"
+	srcset="/p/go-http/yang_hube8ff1c83bba46fef8ef379780ce85f5_758008_480x0_resize_q75_box.jpg 480w, /p/go-http/yang_hube8ff1c83bba46fef8ef379780ce85f5_758008_1024x0_resize_q75_box.jpg 1024w"
+	loading="lazy"
+	
+		alt="Photo by yang on Unsplash"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="57"
+		data-flex-basis="138px"
+	
+></p>
+<p>参考 ：</p>
+<ol>
+<li><a class="link" href="https://www.xiaolongtongxue.com/articles/2021/how-does-go-handle-http-request-timeout-and-cancel"  target="_blank" rel="noopener"
+    >https://www.xiaolongtongxue.com/articles/2021/how-does-go-handle-http-request-timeout-and-cancel</a></li>
+</ol>
+<p>2<a class="link" href="https://www.xiaolongtongxue.com/articles/2021/how-does-go-handle-http-request-timeout-and-cancel"  target="_blank" rel="noopener"
+    >https://www.xiaolongtongxue.com/articles/2021/how-does-go-handle-http-request-timeout-and-cancel</a></p>
+<p>3 <a class="link" href="https://leeshengis.com/archives/4399"  target="_blank" rel="noopener"
+    >https://leeshengis.com/archives/4399</a>
+s://leeshengis.com/archives/4399</p>
+
+</section>
+
+
+    <footer class="article-footer">
+    
+
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+     
+    
+        
+    
+
+    <footer class="site-footer">
+    <section class="copyright">
+        &copy; 
+        
+            2020 - 
+        
+        2023 hugoBlog
+    </section>
+    
+    <section class="powerby">
+        Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> <br />
+        主题 <b><a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener" data-version="3.16.0">Stack</a></b> 由 <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a> 设计
+    </section>
+</footer>
+
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

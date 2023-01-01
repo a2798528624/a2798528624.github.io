@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?>
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
     <channel>
-        <title>hugoBlog</title>
-        <link>https://a2798528624.github.io/</link>
-        <description>Recent content on hugoBlog</description>
+        <title>Http on hugoBlog</title>
+        <link>https://a2798528624.github.io/categories/http/</link>
+        <description>Recent content in Http on hugoBlog</description>
         <generator>Hugo -- gohugo.io</generator>
         <language>zh-CN</language>
-        <lastBuildDate>Sun, 01 Jan 2023 00:00:00 +0000</lastBuildDate><atom:link href="https://a2798528624.github.io/index.xml" rel="self" type="application/rss+xml" /><item>
+        <lastBuildDate>Sun, 01 Jan 2023 00:00:00 +0000</lastBuildDate><atom:link href="https://a2798528624.github.io/categories/http/index.xml" rel="self" type="application/rss+xml" /><item>
         <title>Go 是如何实现http 的超时控制的？</title>
         <link>https://a2798528624.github.io/p/go-http/</link>
         <pubDate>Sun, 01 Jan 2023 00:00:00 +0000</pubDate>
@@ -192,14 +192,6 @@
     &gt;https://leeshengis.com/archives/4399&lt;/a&gt;
 s://leeshengis.com/archives/4399&lt;/p&gt;
 </description>
-        </item>
-        <item>
-        <title>Chinese Test</title>
-        <link>https://a2798528624.github.io/p/chinese-test/</link>
-        <pubDate>Wed, 09 Sep 2020 00:00:00 +0000</pubDate>
-        
-        <guid>https://a2798528624.github.io/p/chinese-test/</guid>
-        <description>&lt;img src="https://a2798528624.github.io/p/chinese-test/steam_311111.png" alt="Featured image of post Chinese Test" /&gt;</description>
         </item>
         
     </channel>
